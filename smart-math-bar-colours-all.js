@@ -22,10 +22,12 @@ function build(obj){
  const fills=Array.from({length:count},(_,i)=>obj.barFills?.[i]||'#ffffff');
  if(type==='comparison'){
   const W=900,H=Math.max(260,120+count*115),els=[],maxW=760;
+  const widths=Array.isArray(obj.barCompareWidths)&&obj.barCompareWidths.length===count?obj.barCompareWidths:Array.from({length:count},(_,i)=>clamp(1-i*.11,.16,1));
   for(let i=0;i<count;i++){
-   const w=maxW*(1-i*.11);
+   const w=maxW*clamp(Number(widths[i])||.5,.16,1);
    els.push(`<rect x="70" y="${45+i*105}" width="${w}" height="72" rx="2" fill="${fills[i]}" stroke="${stroke}" stroke-width="8"/>`);
   }
+  obj.barCompareWidths=widths.map(v=>clamp(Number(v)||.5,.16,1));
   return svgData(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${els.join('')}</svg>`);
  }
  const W=900,H=300,x=60,y=90,w=780,h=120,els=[];
@@ -52,8 +54,9 @@ function hit(clientX,clientY){
   const rx=(x-s.x)/s.w,ry=(y-s.y)/s.h;
   if(s.smartBarType==='comparison'){
    const H=Math.max(260,120+s.barCount*115),px=rx*900,py=ry*H,maxW=760;
+   const widths=Array.isArray(s.barCompareWidths)&&s.barCompareWidths.length===s.barCount?s.barCompareWidths:Array.from({length:s.barCount},(_,j)=>clamp(1-j*.11,.16,1));
    for(let j=0;j<s.barCount;j++){
-    const top=45+j*105,bottom=top+72,w=maxW*(1-j*.11);
+    const top=45+j*105,bottom=top+72,w=maxW*clamp(Number(widths[j])||.5,.16,1);
     if(py>=top-10&&py<=bottom+10&&px>=55&&px<=70+w+15)return{obj:s,index:j};
    }
    const approx=clamp(Math.floor((py-25)/105),0,s.barCount-1);return{obj:s,index:approx};
