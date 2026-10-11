@@ -26,27 +26,38 @@ function ensureState(obj){
 }
 function cutsFor(obj){const n=Math.max(2,obj.barCount||2);if(obj.smartBarType==='equal')return Array.from({length:n-1},(_,i)=>(i+1)/n);if(Array.isArray(obj.barCuts)&&obj.barCuts.length===n-1)return obj.barCuts.slice().sort((a,b)=>a-b);return Array.from({length:n-1},(_,i)=>(i+1)/n)}
 function compWidths(obj){const n=Math.max(2,obj.barCount||2);if(Array.isArray(obj.barCompareWidths)&&obj.barCompareWidths.length===n)return obj.barCompareWidths.map(v=>clamp(Number(v)||.5,.16,1));return Array.from({length:n},(_,i)=>clamp(1-i*.11,.16,1))}
-function lineBracket(x1,x2,y,dir,label,id,obj){
- const arm=9,ctx2=ctx;
- ctx2.save();ctx2.strokeStyle='#17324d';ctx2.fillStyle='#17324d';ctx2.lineWidth=2.2;ctx2.beginPath();ctx2.moveTo(x1,y);ctx2.lineTo(x2,y);ctx2.moveTo(x1,y);ctx2.lineTo(x1,y+dir*arm);ctx2.moveTo(x2,y);ctx2.lineTo(x2,y+dir*arm);ctx2.stroke();
- const tx=(x1+x2)/2,ty=y-dir*5;ctx2.font='700 14px Arial,sans-serif';ctx2.textAlign='center';ctx2.textBaseline=dir<0?'bottom':'top';if(label)ctx2.fillText(label,tx,ty);ctx2.restore();
- hot.push({obj,id,x1:Math.min(x1,x2)-8,x2:Math.max(x1,x2)+8,y1:y-18,y2:y+18});
+function lineBracket(x1,x2,y,toward,label,id,obj,labelSide){
+ const arm=6,ctx2=ctx;
+ if(x2<x1)[x1,x2]=[x2,x1];
+ ctx2.save();
+ ctx2.strokeStyle='#17324d';ctx2.fillStyle='#17324d';ctx2.lineWidth=1.6;ctx2.lineCap='round';ctx2.lineJoin='round';
+ ctx2.beginPath();ctx2.moveTo(x1,y);ctx2.lineTo(x2,y);ctx2.moveTo(x1,y);ctx2.lineTo(x1,y+toward*arm);ctx2.moveTo(x2,y);ctx2.lineTo(x2,y+toward*arm);ctx2.stroke();
+ const tx=(x1+x2)/2;
+ if(label){
+  const side=labelSide||-toward;
+  const ty=y+side*7;
+  ctx2.font='600 13px Arial,sans-serif';ctx2.textAlign='center';ctx2.textBaseline=side<0?'bottom':'top';ctx2.fillText(label,tx,ty);
+ }
+ ctx2.restore();
+ hot.push({obj,id,x1:x1-7,x2:x2+7,y1:y-17,y2:y+17});
 }
+function segmentInset(x1,x2){const w=Math.max(0,x2-x1),gap=Math.min(8,Math.max(3,w*.05));return[x1+gap,x2-gap]}
 function drawPartOrEqual(obj){
  const st=ensureState(obj),n=Math.max(2,obj.barCount||2),cuts=cutsFor(obj),bounds=[0,...cuts,1];
  const left=(obj.x+obj.w*(60/900))*cssW,right=(obj.x+obj.w*(840/900))*cssW,top=(obj.y+obj.h*(90/300))*cssH,bottom=(obj.y+obj.h*(210/300))*cssH;
- if(st.whole?.visible)lineBracket(left,right,bottom+24,1,st.whole.label||'','whole',obj);
+ if(st.whole?.visible)lineBracket(left+2,right-2,bottom+18,-1,st.whole.label||'','whole',obj,1);
  for(let i=0;i<n;i++){
-  const x1=left+(right-left)*bounds[i],x2=left+(right-left)*bounds[i+1];
-  const b=st['p'+i];if(b?.visible)lineBracket(x1,x2,top-22,-1,b.label||'','p'+i,obj);
+  const raw1=left+(right-left)*bounds[i],raw2=left+(right-left)*bounds[i+1];
+  const [x1,x2]=segmentInset(raw1,raw2),b=st['p'+i];
+  if(b?.visible)lineBracket(x1,x2,top-16,1,b.label||'','p'+i,obj,-1);
  }
 }
 function drawComparison(obj){
  const st=ensureState(obj),n=Math.max(2,obj.barCount||2),widths=compWidths(obj),H=Math.max(260,120+n*115);
  for(let i=0;i<n;i++){
-  const x1=(obj.x+obj.w*(70/900))*cssW,x2=(obj.x+obj.w*((70+760*widths[i])/900))*cssW;
-  const top=(obj.y+obj.h*((45+i*105)/H))*cssH;
-  const b=st['c'+i];if(b?.visible)lineBracket(x1,x2,top-18,-1,b.label||'','c'+i,obj);
+  const raw1=(obj.x+obj.w*(70/900))*cssW,raw2=(obj.x+obj.w*((70+760*widths[i])/900))*cssW;
+  const [x1,x2]=segmentInset(raw1,raw2),top=(obj.y+obj.h*((45+i*105)/H))*cssH;
+  const b=st['c'+i];if(b?.visible)lineBracket(x1,x2,top-14,1,b.label||'','c'+i,obj,-1);
  }
 }
 function drawAll(){
