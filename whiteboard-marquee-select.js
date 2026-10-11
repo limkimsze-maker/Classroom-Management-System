@@ -19,7 +19,19 @@ function move(items,dx,dy){for(const it of items){const s=it.s;if(s.locked)conti
 function drawOverlay(){ctx.save();if(marquee){const r=rect(marquee.a,marquee.b);ctx.fillStyle='rgba(37,99,235,.08)';ctx.strokeStyle='#2563eb';ctx.lineWidth=1.5;ctx.setLineDash([6,4]);ctx.fillRect(r.x*cssW,r.y*cssH,r.w*cssW,r.h*cssH);ctx.strokeRect(r.x*cssW,r.y*cssH,r.w*cssW,r.h*cssH)}if(picked.length){ctx.strokeStyle='#2563eb';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);for(const s of picked){if(!strokes.includes(s))continue;const b=bounds(s);if(b)ctx.strokeRect(b.x*cssW-4,b.y*cssH-4,b.w*cssW+8,b.h*cssH+8)}}ctx.restore()}
 redraw=function(){baseRedraw();drawOverlay()};
 function clearIfNotSelect(){if(typeof tool==='string'&&tool!=='select'&&(picked.length||marquee||drag)){picked=[];marquee=null;drag=null;redraw()}}
+function deletePicked(){
+ if(!picked.length)return false;
+ const doomed=new Set(picked);
+ strokes=strokes.filter(s=>!doomed.has(s));
+ picked=[];marquee=null;drag=null;
+ redraw();
+ if(typeof syncUi==='function')syncUi();
+ if(typeof say==='function')say('Selected objects erased');
+ return true;
+}
 document.addEventListener('click',e=>{if(e.target?.closest?.('#selectBtn'))setTimeout(()=>{canvas.style.cursor='crosshair'},0);else if(e.target?.closest?.('button')&&e.target.id!=='selectBtn')clearIfNotSelect()},false);
+// If a marquee selection exists, Eraser acts on that whole selection immediately.
+document.addEventListener('click',e=>{if(!picked.length||tool!=='select')return;if(!e.target?.closest?.('#eraserBtn'))return;e.preventDefault();e.stopImmediatePropagation();deletePicked();canvas.style.cursor='crosshair'},true);
 window.addEventListener('pointerdown',e=>{
  if(e.target!==canvas||tool!=='select'||e.button!==0||!picked.length)return;
  const pt=p(e);if(!picked.some(s=>inside(pt,bounds(s))))return;
@@ -32,5 +44,10 @@ window.addEventListener('pointerdown',e=>{
 },false);
 window.addEventListener('pointermove',e=>{if(e.target!==canvas)return;if(drag){const pt=p(e);move(drag.items,pt.x-drag.start.x,pt.y-drag.start.y);redraw();e.preventDefault();e.stopImmediatePropagation();return}if(marquee){marquee.b=p(e);redraw();e.preventDefault();e.stopImmediatePropagation()}},true);
 window.addEventListener('pointerup',e=>{if(e.target!==canvas)return;if(drag){drag=null;try{canvas.releasePointerCapture?.(e.pointerId)}catch{};redraw();canvas.style.cursor='grab';e.preventDefault();e.stopImmediatePropagation();return}if(marquee){marquee.b=p(e);const r=rect(marquee.a,marquee.b),px=Math.hypot(r.w*cssW,r.h*cssH);picked=px<8?[]:strokes.filter(s=>intersects(bounds(s),r));marquee=null;try{canvas.releasePointerCapture?.(e.pointerId)}catch{};redraw();canvas.style.cursor=picked.length?'grab':'crosshair';e.preventDefault();e.stopImmediatePropagation()}},true);
-window.addEventListener('keydown',e=>{if(e.key==='Escape'&&(picked.length||marquee||drag)){picked=[];marquee=null;drag=null;redraw()}},true);
+window.addEventListener('keydown',e=>{
+ if(e.key==='Escape'&&(picked.length||marquee||drag)){picked=[];marquee=null;drag=null;redraw();return}
+ if(tool!=='select'||!picked.length||!['Delete','Backspace'].includes(e.key))return;
+ if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||'')||document.activeElement?.isContentEditable)return;
+ e.preventDefault();e.stopImmediatePropagation();deletePicked();canvas.style.cursor='crosshair';
+},true);
 })();
