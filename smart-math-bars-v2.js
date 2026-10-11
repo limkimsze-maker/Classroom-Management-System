@@ -30,9 +30,16 @@ function deactivate(){active=false;if(doneBtn)doneBtn.style.display='none';smart
 function makeFinishButton(){if(doneBtn)return;doneBtn=document.createElement('button');doneBtn.type='button';doneBtn.className='btn soft';doneBtn.textContent=L.finish;doneBtn.style.cssText='display:none;min-height:32px;padding:5px 9px;font-size:11px;border-style:dashed';smartBtn.insertAdjacentElement('afterend',doneBtn);doneBtn.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();finishBar()},true)}
 
 function dedupe(vals,tol){vals.sort((a,b)=>a-b);const out=[];for(const v of vals)if(!out.length||Math.abs(v-out[out.length-1])>tol)out.push(v);return out}
-function inferParts(group,gb,maxParts){
- const xs=[];for(const s of group){const b=box(s),pw=b.w*cssW,ph=b.h*cssH;const rx=(b.cx-gb.x)/Math.max(.001,gb.w),ry=(b.cy-gb.y)/Math.max(.001,gb.h);if(ph>=Math.max(10,gb.h*cssH*.38)&&ph>=pw*.72&&rx>.055&&rx<.945&&ry>-.25&&ry<1.25)xs.push(b.cx)}
- return clamp(dedupe(xs,gb.w*.035).length+1,2,maxParts);
+function inferPartLayout(group,gb,maxParts){
+ const xs=[];
+ for(const s of group){
+  const b=box(s),pw=b.w*cssW,ph=b.h*cssH;
+  const rx=(b.cx-gb.x)/Math.max(.001,gb.w),ry=(b.cy-gb.y)/Math.max(.001,gb.h);
+  if(ph>=Math.max(10,gb.h*cssH*.38)&&ph>=pw*.72&&rx>.055&&rx<.945&&ry>-.25&&ry<1.25)xs.push(b.cx);
+ }
+ const unique=dedupe(xs,gb.w*.035).slice(0,maxParts-1);
+ const cuts=unique.map(x=>clamp((x-gb.x)/Math.max(.001,gb.w),.06,.94)).sort((a,b)=>a-b);
+ return{count:clamp(cuts.length+1,2,maxParts),cuts};
 }
 function inferComparisonRows(group,gb){
  let ys=[];for(const s of group){const b=box(s),pw=b.w*cssW,ph=b.h*cssH;if(pw>=70&&pw>=ph*1.7)ys.push(b.cy)}
@@ -40,25 +47,38 @@ function inferComparisonRows(group,gb){
  if(ys.length<2){const all=group.map(s=>box(s).cy);ys=dedupe(all,Math.max(.04,gb.h*.18))}
  return clamp(ys.length,2,5);
 }
-function buildModel(type,count){
+function buildModel(type,count,cuts){
  const W=900,H=type==='comparison'?Math.max(260,120+count*115):300,els=[];
  const stroke='#17324d',fill='#ffffff';
  if(type==='comparison'){
   const maxW=760;for(let i=0;i<count;i++){const w=maxW*(1-i*.11);els.push(`<rect x="70" y="${45+i*105}" width="${w}" height="72" rx="2" fill="${fill}" stroke="${stroke}" stroke-width="8"/>`)}
  }else{
-  const x=60,y=90,w=780,h=120,part=w/count;
+  const x=60,y=90,w=780,h=120;
   els.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="${fill}" stroke="${stroke}" stroke-width="8"/>`);
-  for(let i=1;i<count;i++)els.push(`<line x1="${x+i*part}" y1="${y}" x2="${x+i*part}" y2="${y+h}" stroke="${stroke}" stroke-width="7"/>`);
-  if(type==='missing')els.push(`<text x="${x+w-part/2}" y="${y+h/2+18}" text-anchor="middle" font-family="Arial,sans-serif" font-size="56" font-weight="700" fill="${stroke}">?</text>`);
+  let positions;
+  if(type==='equal') positions=Array.from({length:count-1},(_,i)=>(i+1)/count);
+  else if(Array.isArray(cuts)&&cuts.length===count-1) positions=cuts;
+  else positions=Array.from({length:count-1},(_,i)=>(i+1)/count);
+  for(const r of positions){const px=x+w*r;els.push(`<line x1="${px}" y1="${y}" x2="${px}" y2="${y+h}" stroke="${stroke}" stroke-width="7"/>`)}
+  if(type==='missing'){
+   const bounds=[0,...positions,1],i=Math.max(0,bounds.length-2),mid=(bounds[i]+bounds[i+1])/2;
+   els.push(`<text x="${x+w*mid}" y="${y+h/2+18}" text-anchor="middle" font-family="Arial,sans-serif" font-size="56" font-weight="700" fill="${stroke}">?</text>`);
+  }
  }
  return svgData(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${els.join('')}</svg>`)
 }
-function analyse(group){if(!group.length)return null;const gb=groupBox(group),gw=gb.w*cssW,gh=gb.h*cssH;if(gw<70||gh<18)return null;if(barType==='comparison'){const count=inferComparisonRows(group,gb);if(count<2)return null;return{box:gb,count}}const max=barType==='equal'?12:8;const count=inferParts(group,gb,max);return{box:gb,count}}
+function analyse(group){
+ if(!group.length)return null;
+ const gb=groupBox(group),gw=gb.w*cssW,gh=gb.h*cssH;if(gw<70||gh<18)return null;
+ if(barType==='comparison'){const count=inferComparisonRows(group,gb);if(count<2)return null;return{box:gb,count,cuts:null}}
+ const max=barType==='equal'?12:8,layout=inferPartLayout(group,gb,max);
+ return{box:gb,count:layout.count,cuts:layout.cuts};
+}
 function finishBar(){
  if(!active||!barType)return;
  const group=strokes.slice(startIndex).filter(rawInk),a=analyse(group);if(!a){notify(L.no);forcePen();showActive();return}
  const before=clone(strokes),set=new Set(group);strokes=strokes.filter(s=>!set.has(s));
- const b=a.box,obj={type:'image',src:buildModel(barType,a.count),x:clamp(b.x,0,.94),y:clamp(b.y,0,.94),w:clamp(b.w,.12,1-b.x),h:clamp(Math.max(b.h,barType==='comparison'?.12:.08),.08,1-b.y),smartGenerated:true,smartType:'barModel',smartBarType:barType,smartId:uid(),barCount:a.count,smartOriginal:clone(group)};
+ const b=a.box,obj={type:'image',src:buildModel(barType,a.count,a.cuts),x:clamp(b.x,0,.94),y:clamp(b.y,0,.94),w:clamp(b.w,.12,1-b.x),h:clamp(Math.max(b.h,barType==='comparison'?.12:.08),.08,1-b.y),smartGenerated:true,smartType:'barModel',smartBarType:barType,smartId:uid(),barCount:a.count,barCuts:a.cuts?clone(a.cuts):null,smartOriginal:clone(group)};
  strokes.push(obj);window.__smartBarLastHistory={before,afterId:obj.smartId};redraw();syncUi();try{tool='select';syncUi()}catch{};const label=LABEL[barType];deactivate();notify(`${label} ${L.made}`)
 }
 function begin(type){barType=type;window.__smartBarType=type;active=true;startIndex=strokes.length;close();showActive();forcePen();notify(L.draw)}
@@ -69,7 +89,7 @@ function ensureSubmenu(){
  document.body.appendChild(submenu);return submenu
 }
 function openNear(btn){const m=ensureSubmenu(),r=btn.getBoundingClientRect();m.style.left=Math.max(8,Math.min(innerWidth-205,r.right+6))+'px';m.style.top=Math.max(8,Math.min(innerHeight-230,r.top))+'px';m.style.display='block'}
-function hook(){barButton=findBarButton();if(!barButton)return false;if(barButton.dataset.smartBarSplit==='2')return true;barButton.dataset.smartBarSplit='2';barButton.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();openNear(barButton)},true);return true}
+function hook(){barButton=findBarButton();if(!barButton)return false;if(barButton.dataset.smartBarSplit==='3')return true;barButton.dataset.smartBarSplit='3';barButton.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();openNear(barButton)},true);return true}
 makeFinishButton();if(!hook()){let tries=0;const id=setInterval(()=>{if(hook()||++tries>40)clearInterval(id)},100)}
 document.addEventListener('pointerdown',e=>{if(submenu&&submenu.style.display==='block'&&!submenu.contains(e.target)&&e.target!==barButton)close()},true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){close();if(active)deactivate()}},true);
