@@ -12,12 +12,14 @@ const L=TXT[edition]||TXT.en;
 const clone=v=>JSON.parse(JSON.stringify(v));
 const uid=()=>`smeg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 let panel=null;
-function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]))}
+function esc(v){return String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&apos;'}[c]))}
 function svgData(svg){return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg)}
 function notify(msg){if(typeof say==='function')say(msg);else{const t=document.getElementById('toast');if(t){t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1500)}}}
 function numeric(v){const m=String(v||'').replace(/,/g,'').match(/-?\d+(?:\.\d+)?/);return m?Number(m[0]):NaN}
 function close(){if(panel){panel.remove();panel=null}}
-function bracket(x1,x2,y,dir,label){const arm=14,cy=dir<0?y-10:y+10;return `<path d="M ${x1} ${y+dir*arm} Q ${x1} ${y} ${x1+10} ${y} L ${(x1+x2)/2-14} ${y} Q ${(x1+x2)/2} ${y} ${(x1+x2)/2} ${cy} Q ${(x1+x2)/2} ${y} ${(x1+x2)/2+14} ${y} L ${x2-10} ${y} Q ${x2} ${y} ${x2} ${y+dir*arm}" fill="none" stroke="#111827" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>${label?`<text x="${(x1+x2)/2}" y="${dir<0?y-20:y+42}" text-anchor="middle" font-family="Arial,sans-serif" font-size="34" font-weight="700" fill="#111827">${esc(label)}</text>`:''}`}
+function bracket(x1,x2,y,dir,label){
+ const arm=14,mid=(x1+x2)/2,tip=y+dir*10,endY=y-dir*arm;
+ return `<path d="M ${x1} ${endY} Q ${x1} ${y} ${x1+10} ${y} L ${mid-14} ${y} Q ${mid} ${y} ${mid} ${tip} Q ${mid} ${y} ${mid+14} ${y} L ${x2-10} ${y} Q ${x2} ${y} ${x2} ${endY}" fill="none" stroke="#111827" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>${label?`<text x="${mid}" y="${dir<0?y-20:y+42}" text-anchor="middle" font-family="Arial,sans-serif" font-size="34" font-weight="700" fill="#111827">${esc(label)}</text>`:''}`}
 function build(totalLabel,eachLabel,count){
  const W=1000,H=360,stroke='#111827',fill='#8db8dc';
  const x=120,y=135,h=86,unit=118;
