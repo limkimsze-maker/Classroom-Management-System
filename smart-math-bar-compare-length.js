@@ -72,3 +72,7 @@ canvas.addEventListener('pointerup',endDrag,true);canvas.addEventListener('point
 document.addEventListener('click',e=>{if(suppressClick&&e.target===canvas){e.preventDefault();e.stopImmediatePropagation()}},true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){selectedId=null;drag=null;redraw()}},true);
 })();
+(function(){
+ if(document.querySelector('script[data-smart-bar-brackets]'))return;
+ const s=document.createElement('script');s.dataset.smartBarBrackets='1';s.src='smart-math-bar-brackets.js?v=20261011-1020-autobrackets1';document.head.appendChild(s);
+})();
